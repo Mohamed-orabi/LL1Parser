@@ -2,76 +2,101 @@
 {
     internal class Program
     {
-        private static string inputStr;
-        private static int index;
-        private static char lookahead;
+        private static Stack<string> stack = new Stack<string>();
+        private static string input;
+        private static int index = 0;
         static void Main(string[] args)
         {
-            inputStr = "2+3$";  // The input string to parse, with $ marking the end of input
-            index = 0;
-            lookahead = inputStr[index];  // Initialize the lookahead token
+            // Input string with $ at the end (end of input marker)
+            input = "2+3$";
 
-            // Start parsing with the start symbol E
-            if (ParseE() && lookahead == '$')
+            // Initialize the stack with the start symbol and end-of-input marker
+            stack.Push("$");
+            stack.Push("E");
+
+            // Start parsing
+            if (Parse())
             {
                 Console.WriteLine("Input successfully parsed!");
             }
             else
             {
-                Console.WriteLine("Input parsing failed!");
+                Console.WriteLine("Input parsing failed.");
             }
 
         }
-
-        // Parse the non-terminal E → T E'
-        private static bool ParseE()
+        // LL(1) parsing function
+        static bool Parse()
         {
-            if (ParseT())  // Parse T
+            while (stack.Count > 0)
             {
-                return ParseEPrime();  // Parse E'
-            }
-            return false;
-        }
+                string top = stack.Peek();  // Get the top of the stack
+                char lookahead = input[index];  // Get the lookahead token
 
-        // Parse the non-terminal E' → + T E' | ε
-        private static bool ParseEPrime()
-        {
-            if (lookahead == '+')  // If the lookahead is '+', apply the rule E' → + T E'
-            {
-                Match('+');  // Consume the '+'
-                if (ParseT())  // Parse T
+                // If top is a terminal
+                if (IsTerminal(top))
                 {
-                    return ParseEPrime();  // Recursively parse E'
+                    // If the top matches the lookahead, pop the stack and move input forward
+                    if (top == lookahead.ToString())
+                    {
+                        stack.Pop();
+                        index++;  // Move to the next character in input
+                    }
+                    else
+                    {
+                        return false;  // Mismatch between top of stack and input
+                    }
                 }
-                return false;
+                else  // If top is a non-terminal, use the parsing table
+                {
+                    string rule = GetRule(top, lookahead);  // Get the production rule to apply
+                    if (rule == null)
+                    {
+                        return false;  // No rule found, parsing fails
+                    }
+
+                    stack.Pop();  // Pop the non-terminal
+
+                    // Push the right-hand side of the rule onto the stack (in reverse order)
+                    if (rule != "ε")  // Don't push anything for epsilon (ε)
+                    {
+                        for (int i = rule.Length - 1; i >= 0; i--)
+                        {
+                            stack.Push(rule[i].ToString());
+                        }
+                    }
+                }
             }
-            // If the lookahead is not '+', apply the rule E' → ε (nothing to do here)
-            return true;
+
+            // Parsing succeeds if we have reached the end of the input
+            return index == input.Length;
         }
 
-        // Parse the non-terminal T → num
-        private static bool ParseT()
+        // Function to check if a symbol is terminal (num and + are terminals, $ is end-of-input)
+        static bool IsTerminal(string symbol)
         {
-            if (char.IsDigit(lookahead))  // If the lookahead is a digit (num)
-            {
-                Match(lookahead);  // Consume the number
-                return true;
-            }
-            return false;
+            return symbol == "num" || symbol == "+" || symbol == "$" || char.IsDigit(symbol[0]);
         }
 
-        // Function to consume the current lookahead and move to the next input character
-        private static void Match(char expected)
+        // Function to retrieve the rule from the LL(1) parsing table
+        static string GetRule(string nonTerminal, char lookahead)
         {
-            if (lookahead == expected)
+            if (nonTerminal == "E")
             {
-                index++;
-                lookahead = inputStr[index];  // Move to the next character
+                if (char.IsDigit(lookahead)) return "T E'";
             }
-            else
+            else if (nonTerminal == "E'")
             {
-                throw new Exception("Syntax error: unexpected token");
+                if (lookahead == '+') return "+ T E'";
+                if (lookahead == '$') return "ε";  // Empty production
             }
+            else if (nonTerminal == "T")
+            {
+                if (char.IsDigit(lookahead)) return "num";
+            }
+
+            // If no rule is found, return null
+            return null;
         }
     }
 }
